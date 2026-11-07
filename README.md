@@ -40,7 +40,7 @@ It also ships a WirePlumber rule that:
 
 ```sh
 sudo pacman -S --needed dkms linux-headers   # use the headers of your kernel, e.g. linux-cachyos-headers
-git clone https://github.com/OWNER/acp3x-es8336-dkms.git
+git clone https://github.com/Samu31Nd/acp3x-es8336-dkms.git
 cd acp3x-es8336-dkms
 makepkg -si
 reboot
@@ -88,7 +88,7 @@ journalctl -k -b | grep -i es83
 
 | Vendor | Product | Version | Quirk |
 |---|---|---|---|
-| HUAWEI | NBM-WXX9 (MateBook D 14 AMD) | M1010 | DMIC + 48 MHz (added here) |
+| HUAWEI | NBM-WXX9 (MateBook D 14 AMD) | M1010 | DMIC + 48 MHz (added here; speakers and internal mic tested, 3.5 mm jack untested — reports welcome) |
 | HUAWEI | BOM-WXX9, KLVL-WXX9, KLVL-WXXW, HVY-WXX9 | — | already upstream |
 
 ## Kernel compatibility
