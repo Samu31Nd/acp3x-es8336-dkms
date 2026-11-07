@@ -28,6 +28,14 @@
 
 #define ES83XX_ENABLE_DMIC	BIT(4)
 #define ES83XX_48_MHZ_MCLK	BIT(5)
+/* internal: marks a quirk set from the module parameter, so 0 is still valid */
+#define ES83XX_QUIRK_FORCED	BIT(31)
+
+/* acp3x-es8336-dkms: override the DMI quirks without rebuilding */
+static int es83xx_quirk = -1;
+module_param_named(quirk, es83xx_quirk, int, 0444);
+MODULE_PARM_DESC(quirk,
+		 "ES83xx quirks: -1 = DMI table (default), otherwise a bitmask: 16 = internal DMIC, 32 = 48 MHz MCLK (0 = 12.288 MHz MCLK)");
 
 struct acp3x_es83xx_private {
 	bool speaker_on;
@@ -335,6 +343,15 @@ SND_SOC_DAILINK_DEF(codec,
 
 static const struct dmi_system_id acp3x_es83xx_dmi_table[] = {
 	{
+		/* HUAWEI MateBook D 14 AMD (NBM-WXX9) */
+		.matches = {
+			DMI_EXACT_MATCH(DMI_BOARD_VENDOR, "HUAWEI"),
+			DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "NBM-WXX9"),
+			DMI_EXACT_MATCH(DMI_PRODUCT_VERSION, "M1010"),
+		},
+		.driver_data = (void *)(ES83XX_ENABLE_DMIC|ES83XX_48_MHZ_MCLK),
+	},
+	{
 		.matches = {
 			DMI_EXACT_MATCH(DMI_BOARD_VENDOR, "HUAWEI"),
 			DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "KLVL-WXXW"),
@@ -410,9 +427,22 @@ static int acp3x_es83xx_probe(struct snd_soc_card *card)
 	int ret = 0;
 	struct device *dev = card->dev;
 	const struct dmi_system_id *dmi_id;
+	unsigned long quirk = 0;
 
 	dmi_id = dmi_first_match(acp3x_es83xx_dmi_table);
 	if (dmi_id && dmi_id->driver_data) {
+		quirk = (unsigned long)dmi_id->driver_data;
+	} else if (es83xx_quirk < 0) {
+		quirk = ES83XX_ENABLE_DMIC;
+		dev_warn(dev, "system not in DMI table, using default quirks 0x%lx (override with quirk=)\n",
+			 quirk);
+	}
+	if (es83xx_quirk >= 0) {
+		quirk = es83xx_quirk | ES83XX_QUIRK_FORCED;
+		dev_info(dev, "using quirks 0x%x from module parameter\n", es83xx_quirk);
+	}
+
+	if (quirk) {
 		struct acp3x_es83xx_private *priv;
 		struct acp_card_drvdata *acp_drvdata;
 		struct acpi_device *adev;
@@ -442,7 +472,7 @@ static int acp3x_es83xx_probe(struct snd_soc_card *card)
 		}
 
 		priv->codec_dev = codec_dev;
-		priv->quirk = (unsigned long)dmi_id->driver_data;
+		priv->quirk = quirk & ~ES83XX_QUIRK_FORCED;
 		acp_drvdata->mach_priv = priv;
 		dev_info(dev, "successfully probed the sound card\n");
 	} else {

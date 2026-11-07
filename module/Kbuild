@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+ccflags-y += -I$(src) -I$(src)/acp
+
+obj-m += snd-acp-config.o snd-acp-legacy-mach.o
+
+snd-acp-config-y      := acp-config.o
+snd-acp-legacy-mach-y := acp/acp-legacy-mach.o acp/acp3x-es83xx/acp3x-es83xx.o

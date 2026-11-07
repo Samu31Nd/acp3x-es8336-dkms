@@ -16,12 +16,19 @@
 #include <linux/module.h>
 #include <linux/pci.h>
 
-#include "../sof/amd/acp.h"
 #include "mach-config.h"
 
 #define ACP_7_0_REV	0x70
 
+/* Declared in sound/soc/sof/amd/acp.h, which is not shipped in kernel headers */
+int snd_amd_acp_find_config(struct pci_dev *pci);
+
 static int acp_quirk_data;
+
+static bool es83xx_autodetect = true;
+module_param(es83xx_autodetect, bool, 0444);
+MODULE_PARM_DESC(es83xx_autodetect,
+		 "Use the legacy ES83xx machine driver on ACP3x systems that expose an ESSX8336 codec in ACPI (default: true)");
 
 static const struct dmi_system_id acp70_acpi_flag_override_table[] = {
 	{
@@ -148,6 +155,21 @@ static const struct config_entry config_table[] = {
 				.matches = {
 					DMI_MATCH(DMI_SYS_VENDOR, "Valve"),
 					DMI_MATCH(DMI_PRODUCT_NAME, "Galileo"),
+				},
+			},
+			{}
+		},
+	},
+	{
+		/* HUAWEI MateBook D 14 AMD (NBM-WXX9) */
+		.flags = FLAG_AMD_LEGACY,
+		.device = ACP_PCI_DEV_ID,
+		.dmi_table = (const struct dmi_system_id []) {
+			{
+				.matches = {
+					DMI_EXACT_MATCH(DMI_BOARD_VENDOR, "HUAWEI"),
+					DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "NBM-WXX9"),
+					DMI_EXACT_MATCH(DMI_PRODUCT_VERSION, "M1010"),
 				},
 			},
 			{}
@@ -291,6 +313,18 @@ int snd_amd_acp_find_config(struct pci_dev *pci)
 			continue;
 		acp_quirk_data = table->flags;
 		return table->flags;
+	}
+
+	/*
+	 * acp3x-es8336-dkms: Renoir/Lucienne/Cezanne laptops whose BIOS declares
+	 * an Everest ES8336 codec (ACPI HID ESSX8336) only get the DMIC-only
+	 * driver unless they are listed above. Route them to the legacy machine
+	 * driver so the speakers and headphone jack work.
+	 */
+	if (es83xx_autodetect && device == ACP_PCI_DEV_ID &&
+	    acpi_dev_present("ESSX8336", NULL, -1)) {
+		acp_quirk_data = FLAG_AMD_LEGACY;
+		return FLAG_AMD_LEGACY;
 	}
 
 	return 0;
