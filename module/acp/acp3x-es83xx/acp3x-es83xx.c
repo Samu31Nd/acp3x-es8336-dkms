@@ -41,7 +41,7 @@ MODULE_PARM_DESC(quirk,
 static int es83xx_amp_delay_ms = 50;
 module_param_named(amp_delay_ms, es83xx_amp_delay_ms, int, 0644);
 MODULE_PARM_DESC(amp_delay_ms,
-		 "Delay before enabling the speaker/headphone amplifier, to avoid a pop (ms, default 50, 0 = off)");
+		 "Delay before enabling the speaker amplifier, to avoid a pop (ms, default 50, 0 = off)");
 
 struct acp3x_es83xx_private {
 	bool speaker_on;
@@ -123,20 +123,25 @@ static struct snd_soc_jack_pin es83xx_jack_pins[] = {
 
 static const struct snd_soc_dapm_widget acp3x_es83xx_widgets[] = {
 	/*
-	 * acp3x-es8336-dkms: the amplifier GPIOs are driven from the endpoint
-	 * widgets instead of SUPPLY widgets. DAPM powers supplies first, so the
-	 * amplifier used to be enabled before the codec HP driver had settled,
-	 * which produced a "pop" whenever the output was powered up.
+	 * acp3x-es8336-dkms: the speaker amplifier GPIO is driven from the
+	 * Speaker endpoint widget instead of a SUPPLY widget. DAPM powers
+	 * supplies first, so the amplifier used to be enabled before the codec
+	 * HP driver had settled, which produced a "pop" on power-up.
 	 */
 	SND_SOC_DAPM_SPK("Speaker", acp3x_es83xx_speaker_power_event),
-	SND_SOC_DAPM_HP("Headphone", acp3x_es83xx_headphone_power_event),
+	SND_SOC_DAPM_HP("Headphone", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("Internal Mic", NULL),
+
+	SND_SOC_DAPM_SUPPLY("Headphone Power", SND_SOC_NOPM, 0, 0,
+			    acp3x_es83xx_headphone_power_event,
+			    SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
 };
 
 static const struct snd_soc_dapm_route acp3x_es83xx_audio_map[] = {
 	{"Headphone", NULL, "HPOL"},
 	{"Headphone", NULL, "HPOR"},
+	{"Headphone", NULL, "Headphone Power"},
 
 	/*
 	 * There is no separate speaker output instead the speakers are muxed to
@@ -173,11 +178,8 @@ static int acp3x_es83xx_headphone_power_event(struct snd_soc_dapm_widget *w,
 	struct acp3x_es83xx_private *priv = get_mach_priv(card);
 
 	dev_dbg(priv->codec_dev, "headphone power event = %d\n", event);
-	if (SND_SOC_DAPM_EVENT_ON(event)) {
-		if (es83xx_amp_delay_ms > 0)
-			msleep(es83xx_amp_delay_ms);
+	if (SND_SOC_DAPM_EVENT_ON(event))
 		priv->headphone_on = true;
-	}
 	else
 		priv->headphone_on = false;
 
@@ -199,9 +201,9 @@ static int acp3x_es83xx_speaker_power_event(struct snd_soc_dapm_widget *w,
 		if (es83xx_amp_delay_ms > 0)
 			msleep(es83xx_amp_delay_ms);
 		priv->speaker_on = true;
-	}
-	else
+	} else {
 		priv->speaker_on = false;
+	}
 
 	gpiod_set_value_cansleep(priv->gpio_speakers, priv->speaker_on);
 	gpiod_set_value_cansleep(priv->gpio_headphone, priv->headphone_on);

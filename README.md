@@ -24,7 +24,7 @@ Rebuilds two kernel modules from the matching upstream sources with a small patc
 | Module | Change |
 |---|---|
 | `snd-acp-config` | Adds the HUAWEI MateBook D 14 AMD (`NBM-WXX9`). New parameter `es83xx_autodetect` (default **on**): any ACP3x system with an `ESSX8336` device uses the legacy ES83xx driver, even if it is not listed. |
-| `snd-acp-legacy-mach` | Adds `NBM-WXX9` with internal mic + 48 MHz MCLK. New parameter `quirk` to change the clock / DMIC settings without rebuilding. Enables the amplifier **after** the codec output is up (plus `amp_delay_ms`, default 50) to remove the power-up pop. |
+| `snd-acp-legacy-mach` | Adds `NBM-WXX9` with internal mic + 48 MHz MCLK. New parameter `quirk` to change the clock / DMIC settings without rebuilding. Enables the speaker amplifier **after** the codec output is up (plus `amp_delay_ms`, default 50) to remove the power-up pop. |
 
 DKMS installs them under `updates/dkms`, which takes precedence over the stock modules and
 is rebuilt automatically for every new kernel. Nothing in the kernel package is overwritten.
