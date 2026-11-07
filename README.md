@@ -24,7 +24,7 @@ Rebuilds two kernel modules from the matching upstream sources with a small patc
 | Module | Change |
 |---|---|
 | `snd-acp-config` | Adds the HUAWEI MateBook D 14 AMD (`NBM-WXX9`). New parameter `es83xx_autodetect` (default **on**): any ACP3x system with an `ESSX8336` device uses the legacy ES83xx driver, even if it is not listed. |
-| `snd-acp-legacy-mach` | Adds `NBM-WXX9` with internal mic + 48 MHz MCLK. New parameter `quirk` to change the clock / DMIC settings without rebuilding. |
+| `snd-acp-legacy-mach` | Adds `NBM-WXX9` with internal mic + 48 MHz MCLK. New parameter `quirk` to change the clock / DMIC settings without rebuilding. Enables the amplifier **after** the codec output is up (plus `amp_delay_ms`, default 50) to remove the power-up pop. |
 
 DKMS installs them under `updates/dkms`, which takes precedence over the stock modules and
 is rebuilt automatically for every new kernel. Nothing in the kernel package is overwritten.
@@ -67,6 +67,14 @@ reboot
 
 When you find the value that works, please open an issue with the output of
 `cat /sys/class/dmi/id/{board_vendor,product_name,product_version}` so the model can be added.
+
+**Pop when audio starts:** raise the amplifier delay (applies on the next power-up, no reboot needed):
+
+```sh
+echo 100 | sudo tee /sys/module/snd_acp_legacy_mach/parameters/amp_delay_ms
+# make it permanent:
+echo "options snd_acp_legacy_mach amp_delay_ms=100" | sudo tee -a /etc/modprobe.d/acp3x-es8336.conf
+```
 
 **Check what loaded:**
 

@@ -17,6 +17,7 @@
 #include <linux/input.h>
 #include <linux/io.h>
 #include <linux/acpi.h>
+#include <linux/delay.h>
 #include <linux/dmi.h>
 #include <linux/string_choices.h>
 #include "../acp-mach.h"
@@ -36,6 +37,11 @@ static int es83xx_quirk = -1;
 module_param_named(quirk, es83xx_quirk, int, 0444);
 MODULE_PARM_DESC(quirk,
 		 "ES83xx quirks: -1 = DMI table (default), otherwise a bitmask: 16 = internal DMIC, 32 = 48 MHz MCLK (0 = 12.288 MHz MCLK)");
+
+static int es83xx_amp_delay_ms = 50;
+module_param_named(amp_delay_ms, es83xx_amp_delay_ms, int, 0644);
+MODULE_PARM_DESC(amp_delay_ms,
+		 "Delay before enabling the speaker/headphone amplifier, to avoid a pop (ms, default 50, 0 = off)");
 
 struct acp3x_es83xx_private {
 	bool speaker_on;
@@ -116,23 +122,21 @@ static struct snd_soc_jack_pin es83xx_jack_pins[] = {
 };
 
 static const struct snd_soc_dapm_widget acp3x_es83xx_widgets[] = {
-	SND_SOC_DAPM_SPK("Speaker", NULL),
-	SND_SOC_DAPM_HP("Headphone", NULL),
+	/*
+	 * acp3x-es8336-dkms: the amplifier GPIOs are driven from the endpoint
+	 * widgets instead of SUPPLY widgets. DAPM powers supplies first, so the
+	 * amplifier used to be enabled before the codec HP driver had settled,
+	 * which produced a "pop" whenever the output was powered up.
+	 */
+	SND_SOC_DAPM_SPK("Speaker", acp3x_es83xx_speaker_power_event),
+	SND_SOC_DAPM_HP("Headphone", acp3x_es83xx_headphone_power_event),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("Internal Mic", NULL),
-
-	SND_SOC_DAPM_SUPPLY("Headphone Power", SND_SOC_NOPM, 0, 0,
-			    acp3x_es83xx_headphone_power_event,
-			    SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
-	SND_SOC_DAPM_SUPPLY("Speaker Power", SND_SOC_NOPM, 0, 0,
-			    acp3x_es83xx_speaker_power_event,
-			    SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
 };
 
 static const struct snd_soc_dapm_route acp3x_es83xx_audio_map[] = {
 	{"Headphone", NULL, "HPOL"},
 	{"Headphone", NULL, "HPOR"},
-	{"Headphone", NULL, "Headphone Power"},
 
 	/*
 	 * There is no separate speaker output instead the speakers are muxed to
@@ -140,7 +144,6 @@ static const struct snd_soc_dapm_route acp3x_es83xx_audio_map[] = {
 	 */
 	{"Speaker", NULL, "HPOL"},
 	{"Speaker", NULL, "HPOR"},
-	{"Speaker", NULL, "Speaker Power"},
 };
 
 
@@ -170,8 +173,11 @@ static int acp3x_es83xx_headphone_power_event(struct snd_soc_dapm_widget *w,
 	struct acp3x_es83xx_private *priv = get_mach_priv(card);
 
 	dev_dbg(priv->codec_dev, "headphone power event = %d\n", event);
-	if (SND_SOC_DAPM_EVENT_ON(event))
+	if (SND_SOC_DAPM_EVENT_ON(event)) {
+		if (es83xx_amp_delay_ms > 0)
+			msleep(es83xx_amp_delay_ms);
 		priv->headphone_on = true;
+	}
 	else
 		priv->headphone_on = false;
 
@@ -188,8 +194,12 @@ static int acp3x_es83xx_speaker_power_event(struct snd_soc_dapm_widget *w,
 	struct acp3x_es83xx_private *priv = get_mach_priv(card);
 
 	dev_dbg(priv->codec_dev, "speaker power event: %d\n", event);
-	if (SND_SOC_DAPM_EVENT_ON(event))
+	if (SND_SOC_DAPM_EVENT_ON(event)) {
+		/* let the HP driver / charge pump settle before unmuting the amp */
+		if (es83xx_amp_delay_ms > 0)
+			msleep(es83xx_amp_delay_ms);
 		priv->speaker_on = true;
+	}
 	else
 		priv->speaker_on = false;
 

@@ -1,6 +1,6 @@
 # Build from a clone of this repository: makepkg -si
 pkgname=acp3x-es8336-dkms
-pkgver=1.0.0
+pkgver=1.1.0
 pkgrel=1
 pkgdesc="Speaker/headphone support for AMD ACP3x laptops with an Everest ES8336 codec (Huawei MateBook D AMD, etc.)"
 arch=('any')
